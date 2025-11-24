@@ -1,5 +1,4 @@
 const express = require("express")
-const cors = require('cors')
 var morgan = require("morgan")
 
 const app = express()
@@ -20,7 +19,6 @@ app.use(morgan((tokens, req, res) => {
     tokens.body(req, res)
   ].join(' ')
 }))
-app.use(cors())
 
 const baseUrl = '/api/persons'
 let persons = [
