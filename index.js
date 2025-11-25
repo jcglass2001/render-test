@@ -1,4 +1,6 @@
+require('dotenv').config()
 const express = require("express")
+const Person = require('./models/person')
 var morgan = require("morgan")
 
 const app = express()
@@ -21,28 +23,6 @@ app.use(morgan((tokens, req, res) => {
 }))
 
 const baseUrl = '/api/persons'
-let persons = [
-  {
-    id: "1",
-    name: "Arto Hellas",
-    number: "040-123456"
-  },
-  {
-    id: "2",
-    name: "Ada Lovelace",
-    number: "39-44-5323523"
-  },
-  {
-    id: "3",
-    name: "Dan Abramov",
-    number: "12-43-234345"
-  },
-  {
-    id: "4",
-    name: "Mary Poppendieck",
-    number: "39-23-6423122"
-  }
-]
 
 app.get('/info', (_, res) => {
   const count = persons.length
@@ -59,65 +39,84 @@ app.get('/info', (_, res) => {
 })
 
 app.get(`${baseUrl}/`, (_, res) => {
-  res.json(persons)
+  Person.find({}).then(result => {
+    res.json(result)
+  })
 })
 
-app.get(`${baseUrl}/:id`, (req, res) => {
+app.get(`${baseUrl}/:id`, (req, res, next) => {
   const id = String(req.params.id)
-  const person = persons.find(p => p.id === id)
+  Person.findById(id).then(result => {
+    if (result) {
+      res.json(result)
+    } else {
+      res.status(404).end()
+    }
+  })
+    .catch(error => next(error))
 
-  console.log(person)
-
-  if (!person) {
-    return res.status(404).send('Entry not found')
-  }
-  res.json(person)
 })
 
-app.post(baseUrl, (req, res) => {
-  const body = req.body
-  const exists = persons.find(p => p.name.toLowerCase() === body.name.toLowerCase())
+app.post(baseUrl, (req, res, next) => {
+  const { name, number } = req.body
 
-  if (exists) {
+  // check if both name and number aren't empty
+  if (!name || !number) {
     return res.status(400).json({
-      error: 'name must be unique'
+      error: 'invalid parameters. both name and number must be present'
     })
   }
-  if (!body.name) {
-    return res.status(400).json({
-      error: 'name missing'
-    })
-  }
-  if (!body.number) {
-    return res.status(400).json({
-      error: 'number missing'
-    })
-  }
-  const entry = {
-    id: Math.floor(Math.random() * 100),
-    name: body.name,
-    number: body.number || ""
-  }
-
-  persons = persons.concat(entry)
-  res.json(entry)
+  // save to db
+  const person = new Person({
+    name: name,
+    number: number
+  })
+  person.save().then(result => {
+    return res.json(result)
+  }).catch(error => next(error))
 })
 
-app.delete(`${baseUrl}/:id`, (req, res) => {
+app.put(`${baseUrl}/:id`, (req, res, next) => {
+  const id = req.params.id
+  const { name, number } = req.body
+
+  Person.findById(id).then(result => {
+    if (!result) {
+      return res.status(404).end()
+    }
+    result.name = name || result.name
+    result.number = number || result.number
+
+    result.save().then(updated => {
+      return res.json(updated)
+    })
+  })
+    .catch(error => next(error))
+})
+
+app.delete(`${baseUrl}/:id`, (req, res, next) => {
   const id = String(req.params.id)
-  const person = persons.find(p => p.id === id)
-
-  if (!person) {
-    return res.status(404).send('Entry not found')
-  }
-  persons = persons.filter(p => p.id !== id)
-  res.status(204).end()
+  Person.findByIdAndDelete(id).then(result => {
+    res.status(204).end()
+  })
+    .catch(error => next(error))
 })
 
 const unkownEndpoint = (_, res) => {
   res.status(404).send({ error: 'unknown endpoint' })
 }
 app.use(unkownEndpoint)
+
+const errorHandler = (error, req, res, next) => {
+  console.log(error.message)
+  if (error.name === 'CastError') {
+    return res.status(400).json({ error: 'malformatted id' })
+  } else if (error.name === 'ValidationError') {
+    return res.status(400).json({ error: error.message })
+  }
+  next(error)
+}
+app.use(errorHandler)
 
 const PORT = process.env.PORT || 3001
 app.listen(PORT, () => {
