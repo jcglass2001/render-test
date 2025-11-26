@@ -1,7 +1,7 @@
 require('dotenv').config()
-const express = require("express")
+const express = require('express')
 const Person = require('./models/person')
-var morgan = require("morgan")
+var morgan = require('morgan')
 
 const app = express()
 
@@ -25,8 +25,8 @@ app.use(morgan((tokens, req, res) => {
 const baseUrl = '/api/persons'
 
 app.get('/info', (_, res) => {
-  const count = persons.length
   const received = new Date().toLocaleString()
+  const count = Person.find({}).length
 
   const output = `
     <div>
@@ -96,7 +96,7 @@ app.put(`${baseUrl}/:id`, (req, res, next) => {
 
 app.delete(`${baseUrl}/:id`, (req, res, next) => {
   const id = String(req.params.id)
-  Person.findByIdAndDelete(id).then(result => {
+  Person.findByIdAndDelete(id).then(() => {
     res.status(204).end()
   })
     .catch(error => next(error))
